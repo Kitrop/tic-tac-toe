@@ -3,10 +3,15 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Tictac } from 'src/schemas/tic-tac.schema';
 import { Model } from 'mongoose';
 import { MoveDto } from 'src/dto/tictac.dto';
+import { MogooseService } from 'src/mogoose/mogoose.service'
+import { CheckerService } from './checker.service'
 
 @Injectable()
 export class TictacService {
-	constructor(@InjectModel(Tictac.name) private readonly tictacModel: Model<Tictac>) {}
+	constructor(
+		@InjectModel(Tictac.name) private readonly tictacModel: Model<Tictac>, 
+		private readonly mogooseService: MogooseService, 
+		private readonly checkerService: CheckerService) {}
 
 	async create() {
 		const newGame = new this.tictacModel;
@@ -18,26 +23,18 @@ export class TictacService {
 	// Крестики ходят первые
 
 	async move(moveDto: MoveDto) {
-		const exists = await this.tictacModel.exists({ _id: moveDto._id });
-		if (!exists) { return 'not found'; }
-		else {
-			const findGame = await this.tictacModel.findById(moveDto._id);
-			
-			if (findGame.result === 'X win' || findGame.result === 'O win') {
-				return 'game over';
-			} 
-			else {
-				const cellData = findGame.field[moveDto.cell];
+		const findGame = await this.mogooseService.findGameById(moveDto._id)
+		if (!findGame) return 'not found'
+		
+		if(findGame.result !== 'empty') return 'game end'
 
-				if (cellData !== null || cellData === undefined) { return 'a cell has been entered incorrectly or such a cell does not exist'; }
-				const newFiled = findGame.field;
-				newFiled[moveDto.cell] = 'X';
-				findGame.updateOne({ field: newFiled});
-				
-				// КАК СДЕЛАТЬ???
+		const isFullField = await this.checkerService.checkIsFull(findGame.field)
+		if (isFullField) return 'game end, field full'
 
-			}
-		}
+		const isEmptyCell = await this.checkerService.checkIsCellEmpty(findGame.field, moveDto.cell)
+		if (!isEmptyCell) return 'cell not empty'
+
+		
 	}
 }
 
